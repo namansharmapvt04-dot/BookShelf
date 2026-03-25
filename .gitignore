@@ -1,0 +1,48 @@
+# Python / Django
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+db.sqlite3
+
+# Environment variables — NEVER commit this
+backend/.env
+
+# Django migrations (optional — keep if you want reproducible migrations)
+# backend/api/migrations/
+
+# Static files
+backend/staticfiles/
+backend/media/
+
+# Node.js / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
