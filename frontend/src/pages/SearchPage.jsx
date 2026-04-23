@@ -1,7 +1,12 @@
 import { useState, useCallback } from 'react';
 import api from '../api/axios';
-import BookCard from '../components/BookCard';
+import BookCard, { BookCardSkeleton } from '../components/BookCard';
 import Toast from '../components/Toast';
+
+const SOURCES = [
+  { id: 'google', label: 'Google Books' },
+  { id: 'openlibrary', label: 'Open Library' },
+];
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
@@ -10,6 +15,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [toast, setToast] = useState(null);
   const [adding, setAdding] = useState(null);
+  const [source, setSource] = useState('openlibrary');
 
   const handleSearch = useCallback(async (e) => {
     e?.preventDefault();
@@ -17,14 +23,17 @@ export default function SearchPage() {
     setLoading(true);
     setSearched(true);
     try {
-      const res = await api.get(`/books/search/?q=${encodeURIComponent(query)}`);
+      const endpoint = source === 'openlibrary'
+        ? `/books/open-library/search/?q=${encodeURIComponent(query)}`
+        : `/books/search/?q=${encodeURIComponent(query)}`;
+      const res = await api.get(endpoint);
       setResults(res.data.results || []);
     } catch {
       setToast({ message: 'Search failed. Check your connection.', type: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, source]);
 
   const handleAddToShelf = async (book) => {
     setAdding(book.google_book_id);
@@ -47,83 +56,119 @@ export default function SearchPage() {
     }
   };
 
+  const handleSourceChange = (newSource) => {
+    if (newSource !== source) {
+      setSource(newSource);
+      setResults([]);
+      setSearched(false);
+    }
+  };
+
   return (
-    <div className="page-enter">
-      <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-        Search <span className="gradient-text">Books</span>
-      </h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.95rem' }}>
-        Discover millions of books via Google Books
-      </p>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Header */}
+      <div>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)', marginBottom: '8px' }}>
+          Search Books
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
+          {source === 'openlibrary'
+            ? 'Browse millions of free & borrowable books from Open Library'
+            : 'Discover millions of books via Google Books'}
+        </p>
+      </div>
 
-      {/* Search Bar */}
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem' }}>
-        <input
-          id="search-input"
-          type="text"
-          className="input-field"
-          placeholder='Try "Dune", "Harry Potter", "Science Fiction"...'
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          style={{ flex: 1, fontSize: '1rem' }}
-          autoFocus
-        />
-        <button id="search-submit" type="submit" className="btn-primary" disabled={loading}
-          style={{ padding: '0.85rem 2rem', whiteSpace: 'nowrap' }}>
-          {loading ? '⏳' : '🔍 Search'}
-        </button>
-      </form>
-
-      {/* Loading skeletons */}
-      {loading && (
-        <div className="books-grid">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div className="shimmer" style={{ aspectRatio: '2/3' }} />
-              <div style={{ padding: '0.875rem', background: 'var(--bg-card)' }}>
-                <div className="shimmer" style={{ height: 14, borderRadius: 4, marginBottom: 8 }} />
-                <div className="shimmer" style={{ height: 12, borderRadius: 4, width: '70%' }} />
-              </div>
-            </div>
+      {/* Pill Toggle & Search Input Group */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+        <div style={{
+          display: 'flex', gap: '4px', background: 'var(--bg-surface)', 
+          padding: '4px', borderRadius: 'var(--radius-md)', width: 'fit-content', border: '1px solid var(--border-subtle)'
+        }}>
+          {SOURCES.map(s => (
+            <button
+              key={s.id}
+              onClick={() => handleSourceChange(s.id)}
+              style={{
+                padding: '6px 16px', borderRadius: '4px',
+                border: 'none', cursor: 'pointer', fontSize: '13px',
+                fontWeight: 600, transition: 'all 0.2s ease',
+                background: source === s.id ? 'var(--bg-surface-active)' : 'transparent',
+                color: source === s.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                boxShadow: source === s.id ? '0 1px 3px rgba(0,0,0,0.2)' : 'none'
+              }}
+            >
+              {s.label}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* Results */}
-      {!loading && results.length > 0 && (
-        <>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            Found {results.length} results for "{query}"
-          </p>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '12px' }}>
+          <input
+            id="search-input"
+            type="text"
+            className="input-field"
+            placeholder={source === 'openlibrary' ? 'Try "Pride and Prejudice", "Science"...' : 'Try "Dune", "Harry Potter"...'}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            style={{ flex: 1 }}
+            autoFocus
+          />
+          <button id="search-submit" type="submit" className="btn-primary" disabled={loading} style={{ padding: '0 24px' }}>
+            {loading ? '...' : 'Search'}
+          </button>
+        </form>
+      </div>
+
+      <div style={{ marginTop: '16px' }}>
+        {/* Loading Skeletons */}
+        {loading && (
           <div className="books-grid">
-            {results.map(book => (
-              <BookCard
-                key={book.google_book_id}
-                book={book}
-                onAddToShelf={adding === book.google_book_id ? null : handleAddToShelf}
-              />
+            {Array.from({ length: 12 }).map((_, i) => (
+              <BookCardSkeleton key={i} />
             ))}
           </div>
-        </>
-      )}
+        )}
 
-      {/* No results */}
-      {!loading && searched && results.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</p>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>No books found</p>
-          <p style={{ fontSize: '0.9rem' }}>Try a different search term</p>
-        </div>
-      )}
+        {/* Results */}
+        {!loading && results.length > 0 && (
+          <div className="page-enter">
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
+              Found {results.length} results
+            </p>
+            <div className="books-grid">
+              {results.map(book => (
+                <BookCard
+                  key={book.google_book_id}
+                  book={book}
+                  onAddToShelf={adding === book.google_book_id ? null : handleAddToShelf}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-      {/* Initial state */}
-      {!loading && !searched && (
-        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '4rem', marginBottom: '1rem' }}>📚</p>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>Search for any book</p>
-          <p style={{ fontSize: '0.9rem' }}>Powered by Google Books API</p>
-        </div>
-      )}
+        {/* Empty States */}
+        {!loading && searched && results.length === 0 && (
+          <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: 'var(--text-muted)' }}>
+            <svg style={{ width: '48px', height: '48px', marginBottom: '16px', opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>No matches found</p>
+            <p style={{ fontSize: '14px' }}>Check your spelling or try a broader term.</p>
+          </div>
+        )}
+
+        {!loading && !searched && (
+          <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: 'var(--text-muted)' }}>
+             <svg style={{ width: '48px', height: '48px', marginBottom: '16px', opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <p style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Start searching</p>
+            <p style={{ fontSize: '14px' }}>Powered by the {source === 'openlibrary' ? 'Open Library' : 'Google Books'} API.</p>
+          </div>
+        )}
+      </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

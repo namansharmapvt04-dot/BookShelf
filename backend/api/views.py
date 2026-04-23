@@ -40,6 +40,28 @@ class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
 
 
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        password = request.data.get('password', '')
+        if not password:
+            return Response(
+                {'error': 'Password is required to delete your account.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not request.user.check_password(password):
+            return Response(
+                {'error': 'Incorrect password.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        request.user.delete()
+        return Response(
+            {'message': 'Account deleted successfully.'},
+            status=status.HTTP_200_OK
+        )
+
+
 # ─────────────────────────────────────────────
 # PROFILE
 # ─────────────────────────────────────────────
@@ -345,3 +367,215 @@ def dashboard(request):
         'recent_activity': recent_activity,
         'top_categories': top_categories,
     })
+
+
+OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json'
+OL_HEADERS = {'User-Agent': 'BookShelf/1.0 (bookshelf-app)'}
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def open_library_search(request):
+    """Search Open Library for books — returns results with reading availability."""
+    query = request.query_params.get('q', '').strip()
+    if not query:
+        return Response({'error': 'Query parameter "q" is required.'}, status=400)
+
+    cache_key = f'ol_search_{query.lower().replace(" ", "_")}'
+    cached = cache.get(cache_key)
+    if cached:
+        return Response({'results': cached, 'source': 'cache'})
+
+    try:
+        resp = requests.get(
+            OPEN_LIBRARY_SEARCH_URL,
+            params={
+                'q': query,
+                'limit': 30,
+                'fields': 'key,title,author_name,cover_i,first_publish_year,'
+                          'number_of_pages_median,subject,ia,ebook_access,has_fulltext',
+            },
+            headers=OL_HEADERS,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        return Response({'error': f'Open Library API error: {str(e)}'}, status=502)
+
+    books = []
+    for doc in data.get('docs', []):
+        cover_id = doc.get('cover_i')
+        thumbnail = f'https://covers.openlibrary.org/b/id/{cover_id}-M.jpg' if cover_id else ''
+
+        has_fulltext = doc.get('has_fulltext', False)
+        ebook_access = doc.get('ebook_access', 'no_ebook')
+        readable = has_fulltext and ebook_access in ('public', 'borrowable')
+
+        # Pick best IA identifier for readable books
+        read_url = None
+        ia_id = None
+        if readable and doc.get('ia'):
+            for identifier in doc['ia']:
+                if not identifier.startswith(('bwb_', 'isbn_', 'lccn_')):
+                    ia_id = identifier
+                    break
+            if not ia_id:
+                ia_id = doc['ia'][0]
+            read_url = f'https://archive.org/embed/{ia_id}'
+
+        subjects = doc.get('subject', [])
+        categories = ', '.join(subjects[:3]) if subjects else ''
+
+        ol_key = doc.get('key', '')
+        # Use OL work key as the ID (e.g. "OL15626917W")
+        ol_id = ol_key.replace('/works/', '') if ol_key else ''
+
+        books.append({
+            'google_book_id': f'ol_{ol_id}',  # Prefix to distinguish from Google Books
+            'ol_key': ol_key,
+            'title': doc.get('title', 'Unknown Title'),
+            'authors': ', '.join(doc.get('author_name', ['Unknown Author'])),
+            'thumbnail': thumbnail,
+            'published_date': str(doc.get('first_publish_year', '')),
+            'page_count': doc.get('number_of_pages_median', 0) or 0,
+            'categories': categories,
+            'description': '',
+            'readable': readable,
+            'ebook_access': ebook_access,
+            'read_url': read_url,
+            'ia_id': ia_id,
+            'source': 'openlibrary',
+        })
+
+    cache.set(cache_key, books, timeout=3600)
+    return Response({'results': books, 'source': 'api'})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def open_library_lookup(request):
+    """Look up a book on Open Library and return reading availability."""
+    title = request.query_params.get('title', '').strip()
+    author = request.query_params.get('author', '').strip()
+
+    if not title:
+        return Response({'error': 'Title parameter is required.'}, status=400)
+
+    cache_key = f'ol_lookup_{title.lower().replace(" ", "_")}_{author.lower().replace(" ", "_")}'
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
+
+    
+    search_params = {
+        'title': title,
+        'limit': 15,
+        'fields': 'key,title,author_name,isbn,ia,ebook_access,has_fulltext,language',
+    }
+    if author:
+        
+        first_author = author.split(',')[0].strip()
+        search_params['author'] = first_author
+
+    try:
+        resp = requests.get(
+            OPEN_LIBRARY_SEARCH_URL,
+            params=search_params,
+            headers=OL_HEADERS,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        return Response({'error': f'Open Library API error: {str(e)}'}, status=502)
+
+    docs = data.get('docs', [])
+
+ 
+    result = {
+        'available': False,
+        'ebook_access': 'no_ebook',
+        'read_url': None,
+        'ia_id': None,
+        'ol_key': None,
+        'ol_title': None,
+    }
+
+    def _pick_ia_id(ia_list):
+        """Pick the best Internet Archive identifier from a list."""
+        for identifier in ia_list:
+            if not identifier.startswith('bwb_') and not identifier.startswith('isbn_') and not identifier.startswith('lccn_'):
+                return identifier
+        return ia_list[0] if ia_list else None
+
+    def _title_similarity(doc_title, search_title):
+        """Simple title matching score (0-1)."""
+        a = doc_title.lower().strip()
+        b = search_title.lower().strip()
+        if a == b:
+            return 1.0
+        if b in a or a in b:
+            return 0.8
+        
+        words_a = set(a.split())
+        words_b = set(b.split())
+        if not words_b:
+            return 0
+        return len(words_a & words_b) / len(words_b)
+
+    
+    candidates = []
+    for doc in docs:
+        if not doc.get('has_fulltext') or not doc.get('ia'):
+            continue
+
+        ia_id = _pick_ia_id(doc['ia'])
+        if not ia_id:
+            continue
+
+        score = 0
+        doc_title = doc.get('title', '')
+
+       
+        score += _title_similarity(doc_title, title) * 50
+
+      
+        languages = doc.get('language', [])
+        if 'eng' in languages:
+            score += 20
+        elif not languages:
+            score += 10  
+
+        
+        access = doc.get('ebook_access', '')
+        if access == 'public':
+            score += 15
+        elif access == 'borrowable':
+            score += 5
+
+        candidates.append({
+            'score': score,
+            'ia_id': ia_id,
+            'ebook_access': access,
+            'ol_key': doc.get('key', ''),
+            'ol_title': doc_title,
+        })
+
+    
+    if candidates:
+        candidates.sort(key=lambda c: c['score'], reverse=True)
+        best = candidates[0]
+        result = {
+            'available': True,
+            'ebook_access': best['ebook_access'],
+            'read_url': f'https://archive.org/embed/{best["ia_id"]}',
+            'ia_id': best['ia_id'],
+            'ol_key': best['ol_key'],
+            'ol_title': best['ol_title'],
+        }
+
+    cache.set(cache_key, result, timeout=86400)  
+    return Response(result)
+
+

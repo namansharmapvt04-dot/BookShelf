@@ -2,147 +2,145 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import ProgressBar from '../components/ProgressBar';
-
-const STAT_CARDS = [
-  { key: 'total_books', label: 'Total Books', icon: '📚', color: '#6c63ff' },
-  { key: 'reading', label: 'Reading', icon: '📖', color: '#00d4aa' },
-  { key: 'completed', label: 'Completed', icon: '✅', color: '#6c63ff' },
-  { key: 'want_to_read', label: 'Want to Read', icon: '🔖', color: '#ff6b9d' },
-];
+import BookCard, { BookCardSkeleton } from '../components/BookCard';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [data, setData] = useState(null);
+  const [books, setBooks] = useState([]);
+  const [discoverData, setDiscoverData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/dashboard/')
-      .then(res => setData(res.data))
-      .catch(console.error)
+    Promise.all([
+      api.get('/shelf/').catch(() => ({ data: [] })),
+      api.get('/discover/').catch(() => ({ data: { recommendations: [] } }))
+    ])
+      .then(([shelfRes, discoverRes]) => {
+        setBooks(shelfRes.data || []);
+        // Safely extract recommendations specifically for the Dashboard
+        setDiscoverData(discoverRes.data?.recommendations || []);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div className="page-enter">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="shimmer" style={{ height: 120, borderRadius: 'var(--radius-lg)' }} />
-        ))}
+  const currentlyReading = books.filter(b => b.status === 'reading');
+  const wantToRead = books.filter(b => b.status === 'want_to_read');
+  const recentlyAdded = [...books].reverse().slice(0, 8); // Mocking recent for visual layout
+
+  if (loading) {
+    return (
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <section>
+          <div className="shimmer" style={{ width: '200px', height: '24px', marginBottom: '16px', borderRadius: '4px' }} />
+          <div className="horizontal-scroll">
+            {[1, 2, 3, 4, 5].map(i => <BookCardSkeleton key={i} />)}
+          </div>
+        </section>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // --- Empty State ---
+  if (books.length === 0) {
+    return (
+      <div className="page-enter" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ textAlign: 'center', maxWidth: '440px' }}>
+          <svg style={{ width: '64px', height: '64px', margin: '0 auto 24px', color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Your library is empty
+          </h2>
+          <p style={{ fontSize: '15px', color: 'var(--text-secondary)', marginBottom: '32px', lineHeight: 1.5 }}>
+            Discover millions of books, track your reading progress, and build your digital shelf.
+          </p>
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+            <Link to="/search" className="btn-secondary" style={{ display: 'inline-block', textDecoration: 'none', padding: '12px 24px' }}>
+              Explore Books
+            </Link>
+            <Link to="/discover" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none', padding: '12px 24px' }}>
+              Discover Recommendations
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="page-enter">
-      {/* Welcome */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-          Good reading, <span className="gradient-text">{user?.username || 'Reader'}!</span> 👋
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-          Here's your reading summary
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+      
+      {/* Header Profile Greeting */}
+      <div style={{ marginBottom: '-16px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+          Welcome back, {user?.username || 'Reader'}
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginTop: '4px' }}>
+          Ready to dive back in?
         </p>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-        {STAT_CARDS.map(({ key, label, icon, color }) => (
-          <div key={key} className="card" style={{ padding: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '1.5rem' }}>{icon}</span>
-              <span style={{
-                fontSize: '1.8rem', fontWeight: 800,
-                background: `linear-gradient(135deg, ${color}, ${color}aa)`,
-                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'
-              }}>
-                {data?.[key] ?? 0}
-              </span>
-            </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {label}
-            </p>
+      {currentlyReading.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Continue Reading</h2>
           </div>
-        ))}
-      </div>
-
-      {/* Reading goal */}
-      {data && (
-        <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontWeight: 700, fontSize: '1rem' }}>📎 Annual Reading Goal</h3>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              {data.completed} / {data.reading_goal} books
-            </span>
+          <div className="horizontal-scroll">
+            {currentlyReading.map(book => (
+              <div key={book.id} style={{ minWidth: '160px', maxWidth: '180px', flexShrink: 0 }}>
+                <BookCard book={book} shelfStatus={book.status} />
+              </div>
+            ))}
           </div>
-          <ProgressBar percent={data.goal_progress_percent} label={`${data.goal_progress_percent}% of your goal`} />
-        </div>
+        </section>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-        {/* Recent Activity */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '1.25rem' }}>⚡ Recent Activity</h3>
-          {data?.recent_activity?.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {data.recent_activity.map((a, i) => (
-                <div key={i} style={{
-                  padding: '0.75rem', background: 'var(--bg-secondary)',
-                  borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--accent-primary)'
-                }}>
-                  <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                    {a.book_title}
-                  </p>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Read {a.pages_read} pages · {new Date(a.date).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📖</p>
-              <p style={{ fontSize: '0.88rem' }}>No reading sessions yet</p>
-              <Link to="/search" style={{ color: 'var(--accent-primary)', fontSize: '0.85rem', fontWeight: 600 }}>
-                Find a book to start →
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Top Categories */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '1.25rem' }}>🏷️ Top Categories</h3>
-          {data?.top_categories?.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {data.top_categories.map((cat, i) => (
-                <span key={i} style={{
-                  padding: '0.4rem 0.875rem', borderRadius: '100px',
-                  background: `rgba(108, 99, 255, ${0.1 + i * 0.05})`,
-                  color: 'var(--accent-primary)', border: '1px solid rgba(108,99,255,0.25)',
-                  fontSize: '0.82rem', fontWeight: 600
-                }}>
-                  {cat}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              Complete some books to see your favorite categories
-            </p>
-          )}
-
-          {/* Quick links */}
-          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/search" className="btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none', padding: '0.65rem' }}>
-              Search Books
-            </Link>
-            <Link to="/discover" className="btn-secondary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none', padding: '0.65rem' }}>
-              Discover →
-            </Link>
+      {wantToRead.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Up Next</h2>
+            <Link to="/shelf" style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500, textDecoration: 'none' }}>View All →</Link>
           </div>
-        </div>
-      </div>
+          <div className="horizontal-scroll">
+            {wantToRead.map(book => (
+              <div key={book.id} style={{ minWidth: '160px', maxWidth: '180px', flexShrink: 0 }}>
+                <BookCard book={book} shelfStatus={book.status} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {discoverData.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Discover New Books</h2>
+            <Link to="/discover" style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500, textDecoration: 'none' }}>More Suggestions →</Link>
+          </div>
+          <div className="horizontal-scroll">
+            {discoverData.map(book => (
+              <div key={book.google_book_id} style={{ minWidth: '160px', maxWidth: '180px', flexShrink: 0 }}>
+                <BookCard book={book} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recentlyAdded.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Recently Added</h2>
+            <Link to="/shelf" style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500, textDecoration: 'none' }}>Library →</Link>
+          </div>
+          <div className="books-grid">
+            {recentlyAdded.map(book => (
+              <BookCard key={book.id} book={book} shelfStatus={book.status} />
+            ))}
+          </div>
+        </section>
+      )}
+
     </div>
   );
 }

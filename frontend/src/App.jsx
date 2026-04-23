@@ -9,6 +9,7 @@ import SearchPage from './pages/SearchPage';
 import ShelfPage from './pages/ShelfPage';
 import BookDetailPage from './pages/BookDetailPage';
 import DiscoverPage from './pages/DiscoverPage';
+import ReaderPage from './pages/ReaderPage';
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -57,6 +58,9 @@ export default function App() {
             <Route path="/book/:id" element={<BookDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
           </Route>
+
+          {/* Reader — full screen overlay */}
+          <Route path="/read/:id" element={<ReaderPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>

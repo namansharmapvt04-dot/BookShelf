@@ -6,87 +6,154 @@ const STATUS_LABELS = {
   completed: 'Completed',
 };
 
-export default function BookCard({ book, onAddToShelf, shelfStatus, onStatusChange, compact = false }) {
+export const BookCardSkeleton = () => (
+  <div className="book-card-wrapper">
+    <div className="book-thumbnail-container shimmer" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 4px' }}>
+      <div className="shimmer" style={{ height: '14px', width: '85%', borderRadius: '4px' }} />
+      <div className="shimmer" style={{ height: '14px', width: '60%', borderRadius: '4px' }} />
+      <div className="shimmer" style={{ height: '12px', width: '40%', borderRadius: '4px', marginTop: '4px' }} />
+    </div>
+  </div>
+);
+
+export default function BookCard({ book, onAddToShelf, shelfStatus, onStatusChange }) {
   const navigate = useNavigate();
   const thumbnail = book.thumbnail || book.imageLinks?.thumbnail || '';
   const title = book.title || 'Unknown Title';
   const authors = book.authors || 'Unknown Author';
   const googleBookId = book.google_book_id || book.id || book.googleBookId;
+  const isOL = book.source === 'openlibrary';
+  const isReadable = isOL && book.readable;
+  
+  // Progress estimation mock (if backend tracking isn't absolute, we gracefully omit or fake for visual spec)
+  // For actual production, pull from `book.progress_percent`
+  const progressPercent = book.progress_percent || (shelfStatus === 'reading' ? 45 : 0);
+
+  const handleClick = () => {
+    navigate(`/book/${googleBookId}`, { state: { book } });
+  };
+
+  const handleRead = (e) => {
+    e.stopPropagation();
+    navigate(`/read/${googleBookId}`, {
+      state: {
+        title: book.title,
+        authors: book.authors,
+        readUrl: book.read_url,
+        ebookAccess: book.ebook_access,
+      }
+    });
+  };
+
+  const handleShelfClick = (e) => {
+    e.stopPropagation();
+    if (onAddToShelf) {
+      onAddToShelf(book);
+    } else if (onStatusChange) {
+      // In a premium UI, this would fire a sleek native context menu.
+      // We will cycle through or jump to the detail page for management.
+      const states = ['want_to_read', 'reading', 'completed'];
+      const next = states[(states.indexOf(shelfStatus) + 1) % states.length];
+      onStatusChange(next);
+    }
+  };
 
   return (
-    <div
-      className="card"
-      style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-      onClick={() => navigate(`/book/${googleBookId}`, { state: { book } })}
-    >
-      {/* Cover */}
-      <div style={{
-        position: 'relative', aspectRatio: '2/3', overflow: 'hidden',
-        background: 'var(--bg-secondary)',
-      }}>
+    <div className="book-card-wrapper" onClick={handleClick}>
+      
+      {/* Cover / Thumbnail Region */}
+      <div className="book-thumbnail-container">
         {thumbnail ? (
           <img
             src={thumbnail}
             alt={title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }}
-            onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
-            onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+            className="book-thumbnail-image"
           />
         ) : (
           <div style={{
             width: '100%', height: '100%', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'var(--gradient-primary)', fontSize: '3rem'
-          }}>📖</div>
-        )}
-        {/* Status badge overlay */}
-        {shelfStatus && (
-          <div style={{ position: 'absolute', top: 8, right: 8 }}>
-            <span className={`badge badge-${shelfStatus}`}>
-              {STATUS_LABELS[shelfStatus] || shelfStatus}
-            </span>
+            justifyContent: 'center', background: 'var(--bg-surface-active)', color: 'var(--text-muted)', fontSize: '24px'
+          }}>
+            No Cover
           </div>
         )}
-      </div>
 
-      {/* Info */}
-      <div style={{ padding: '0.875rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <h3 style={{
-          fontSize: compact ? '0.8rem' : '0.88rem', fontWeight: 700, color: 'var(--text-primary)',
-          lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden'
-        }}>{title}</h3>
-        <p style={{
-          fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-        }}>{authors}</p>
+        {/* Status Badges Overlay (Top Right) */}
+        <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px', flexDirection: 'column', alignItems: 'flex-end' }}>
+          {shelfStatus && (
+            <span style={{
+              background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+              color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)',
+              padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase'
+            }}>
+              {STATUS_LABELS[shelfStatus]}
+            </span>
+          )}
+          {isReadable && !shelfStatus && (
+            <span style={{
+              background: 'var(--accent-primary)', color: '#fff',
+              padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.02em'
+            }}>
+              📖 Read
+            </span>
+          )}
+        </div>
 
-        {/* Actions */}
-        <div style={{ marginTop: 'auto', paddingTop: '0.5rem' }} onClick={e => e.stopPropagation()}>
-          {onStatusChange && shelfStatus ? (
-            <select
-              value={shelfStatus}
-              onChange={e => onStatusChange(e.target.value)}
-              style={{
-                width: '100%', padding: '0.4rem 0.5rem', borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-primary)', color: 'var(--text-primary)',
-                border: '1px solid var(--border)', fontSize: '0.75rem', cursor: 'pointer'
-              }}
-            >
-              <option value="want_to_read">Want to Read</option>
-              <option value="reading">Reading</option>
-              <option value="completed">Completed</option>
-            </select>
-          ) : onAddToShelf ? (
-            <button
-              onClick={() => onAddToShelf(book)}
-              className="btn-primary"
-              style={{ width: '100%', padding: '0.5rem', fontSize: '0.78rem' }}
-            >
-              + Add to Shelf
+        {/* Progress Bar (Bottom Edge of Cover) */}
+        {shelfStatus === 'reading' && (
+          <div className="progress-thin-track">
+            <div className="progress-thin-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+        )}
+        
+        {/* Abstract Hover Actions (Netflix Style) */}
+        <div 
+          className="hover-actions-overlay"
+          style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', opacity: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px',
+            transition: 'opacity 0.2s ease'
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = 1}
+          onMouseLeave={e => e.currentTarget.style.opacity = 0}
+        >
+          {isReadable && (
+            <button onClick={handleRead} style={{
+              background: '#fff', color: '#000', padding: '8px 16px', borderRadius: '100px',
+              fontWeight: 600, fontSize: '12px', border: 'none', cursor: 'pointer'
+            }}>
+              ▶ Read Now
             </button>
-          ) : null}
+          )}
+          {(onAddToShelf || shelfStatus) && (
+            <button onClick={handleShelfClick} style={{
+              background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', color: '#fff', 
+              padding: '6px 12px', borderRadius: '100px', fontWeight: 500, fontSize: '11px', border: '1px solid rgba(255,255,255,0.4)', cursor: 'pointer'
+            }}>
+              {shelfStatus ? '↻ Move Status' : '+ Add to Library'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Typography Region */}
+      <div style={{ display: 'flex', flexDirection: 'column', padding: '0 4px' }}>
+        <h3 style={{
+          fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)',
+          lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical', overflow: 'hidden'
+        }}>
+          {title}
+        </h3>
+        <p style={{
+          fontSize: '12px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '2px',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+        }}>
+          {authors}
+        </p>
+      </div>
+
     </div>
   );
 }

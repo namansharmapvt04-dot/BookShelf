@@ -75,11 +75,11 @@ export default function SignupPage() {
         <div className="glass" style={{ padding: '2rem', borderRadius: 'var(--radius-xl)' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              {field('first_name', 'First Name', 'text', 'John')}
-              {field('last_name', 'Last Name', 'text', 'Doe')}
+              {field('first_name', 'First Name', 'text', '')}
+              {field('last_name', 'Last Name', 'text', '')}
             </div>
-            {field('username', 'Username', 'text', 'johndoe')}
-            {field('email', 'Email', 'email', 'john@example.com')}
+            {field('username', 'Username', 'text', '')}
+            {field('email', 'Email', 'email', '')}
             {field('password', 'Password', 'password', '••••••••')}
             {field('password2', 'Confirm Password', 'password', '••••••••')}
 

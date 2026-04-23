@@ -42,10 +42,17 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const deleteAccount = async (password) => {
+    await api.delete('/auth/delete-account/', { data: { password } });
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setUser(null);
+  };
+
   const updateUser = (data) => setUser(prev => ({ ...prev, ...data }));
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, deleteAccount, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

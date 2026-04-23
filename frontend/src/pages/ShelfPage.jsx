@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
-import BookCard from '../components/BookCard';
+import BookCard, { BookCardSkeleton } from '../components/BookCard';
 import Toast from '../components/Toast';
 
 const FILTERS = [
   { value: '', label: 'All Books' },
-  { value: 'reading', label: '📖 Reading' },
-  { value: 'want_to_read', label: '🔖 Want to Read' },
-  { value: 'completed', label: '✅ Completed' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'want_to_read', label: 'Want to Read' },
+  { value: 'completed', label: 'Completed' },
 ];
 
 export default function ShelfPage() {
@@ -22,8 +22,8 @@ export default function ShelfPage() {
       const url = statusFilter ? `/shelf/?status=${statusFilter}` : '/shelf/';
       const res = await api.get(url);
       setBooks(res.data);
-    } catch (err) {
-      setToast({ message: 'Failed to load shelf', type: 'error' });
+    } catch {
+      setToast({ message: 'Failed to load library', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -41,43 +41,38 @@ export default function ShelfPage() {
     }
   };
 
-  const handleDelete = async (bookId, title) => {
-    if (!window.confirm(`Remove "${title}" from your shelf?`)) return;
-    try {
-      await api.delete(`/shelf/${bookId}/`);
-      setBooks(prev => prev.filter(b => b.id !== bookId));
-      setToast({ message: 'Book removed from shelf', type: 'success' });
-    } catch {
-      setToast({ message: 'Failed to remove book', type: 'error' });
-    }
-  };
-
-  const displayed = filter ? books : books;
+  const displayed = filter ? books : books; // In original it re-filtered, but the API query actually handled it
 
   return (
-    <div className="page-enter">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-            My <span className="gradient-text">Shelf</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Your Library
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
             {books.length} book{books.length !== 1 ? 's' : ''} on your shelf
           </p>
         </div>
 
-        {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {/* Filter Pill Segment */}
+        <div style={{
+          display: 'flex', gap: '4px', background: 'var(--bg-surface)', 
+          padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)'
+        }}>
           {FILTERS.map(f => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
               style={{
-                padding: '0.5rem 1rem', borderRadius: '100px', border: 'none', cursor: 'pointer',
-                fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.2s ease',
-                background: filter === f.value ? 'var(--gradient-primary)' : 'var(--bg-card)',
-                color: filter === f.value ? 'white' : 'var(--text-secondary)',
-                border: `1px solid ${filter === f.value ? 'transparent' : 'var(--border)'}`,
+                padding: '6px 16px', borderRadius: '4px',
+                border: 'none', cursor: 'pointer', fontSize: '13px',
+                fontWeight: 600, transition: 'all 0.2s ease',
+                background: filter === f.value ? 'var(--bg-surface-active)' : 'transparent',
+                color: filter === f.value ? 'var(--text-primary)' : 'var(--text-secondary)',
+                boxShadow: filter === f.value ? '0 1px 3px rgba(0,0,0,0.2)' : 'none'
               }}
             >
               {f.label}
@@ -86,54 +81,38 @@ export default function ShelfPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="books-grid">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div className="shimmer" style={{ aspectRatio: '2/3' }} />
-              <div style={{ padding: '0.875rem', background: 'var(--bg-card)' }}>
-                <div className="shimmer" style={{ height: 14, borderRadius: 4, marginBottom: 8 }} />
-                <div className="shimmer" style={{ height: 12, borderRadius: 4, width: '70%' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : displayed.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '5rem', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>📚</p>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>
-            {filter ? `No books with status "${filter}"` : 'Your shelf is empty'}
-          </p>
-          <p style={{ fontSize: '0.9rem', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
-            Search for books to add them here
-          </p>
-        </div>
-      ) : (
-        <div className="books-grid">
-          {displayed.map(book => (
-            <div key={book.id} style={{ position: 'relative' }}>
+      <div style={{ marginTop: '16px' }}>
+        {loading ? (
+          <div className="books-grid">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <BookCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : displayed.length === 0 ? (
+          <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
+            <svg style={{ width: '48px', height: '48px', marginBottom: '16px', opacity: 0.5 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <p style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              {filter ? `No books with status "${filter}"` : 'Your shelf is empty'}
+            </p>
+            <p style={{ fontSize: '14px' }}>
+              Search for books to add them here.
+            </p>
+          </div>
+        ) : (
+          <div className="books-grid page-enter">
+            {displayed.map(book => (
               <BookCard
+                key={book.id}
                 book={{ ...book, google_book_id: book.google_book_id }}
                 shelfStatus={book.status}
                 onStatusChange={(newStatus) => handleStatusChange(book.id, newStatus)}
               />
-              <button
-                onClick={() => handleDelete(book.id, book.title)}
-                style={{
-                  position: 'absolute', top: 44, right: 6,
-                  background: 'rgba(255,107,157,0.15)', border: '1px solid rgba(255,107,157,0.3)',
-                  color: 'var(--accent-secondary)', borderRadius: '6px',
-                  width: 28, height: 28, cursor: 'pointer', fontSize: '0.8rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-                title="Remove from shelf"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

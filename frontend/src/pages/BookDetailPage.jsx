@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import ProgressBar from '../components/ProgressBar';
 import StarRating from '../components/StarRating';
 import Toast from '../components/Toast';
 
+/** Check if Open Library title is an exact match with the displayed book title. */
+function _isTitleMatch(bookTitle, olTitle) {
+  if (!bookTitle || !olTitle) return false;
+  return bookTitle.toLowerCase().trim() === olTitle.toLowerCase().trim();
+}
+
 export default function BookDetailPage() {
   const { id } = useParams();
   const { state } = useLocation();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [book, setBook] = useState(state?.book || null);
   const [shelfEntry, setShelfEntry] = useState(null);
@@ -22,6 +29,9 @@ export default function BookDetailPage() {
   const [sessionForm, setSessionForm] = useState({ pages_read: '', date: new Date().toISOString().slice(0, 10), notes: '' });
   // Review form
   const [reviewForm, setReviewForm] = useState({ rating: 0, review_text: '' });
+  // Open Library availability
+  const [olData, setOlData] = useState(null);
+  const [olLoading, setOlLoading] = useState(false);
 
   useEffect(() => {
     // Fetch reviews
@@ -47,6 +57,18 @@ export default function BookDetailPage() {
         .catch(console.error);
     }
   }, [id, user]);
+
+  // Fetch Open Library availability
+  useEffect(() => {
+    if (!book) return;
+    setOlLoading(true);
+    const params = new URLSearchParams({ title: book.title });
+    if (book.authors) params.append('author', book.authors);
+    api.get(`/books/open-library/?${params.toString()}`)
+      .then(res => setOlData(res.data))
+      .catch(() => setOlData(null))
+      .finally(() => setOlLoading(false));
+  }, [book]);
 
   const handleAddToShelf = async () => {
     try {
@@ -204,6 +226,65 @@ export default function BookDetailPage() {
                   + Add to Shelf
                 </button>
               )}
+
+              {/* Read Book button */}
+              {olLoading ? (
+                <button disabled className="btn-secondary" style={{ opacity: 0.5, cursor: 'wait', fontSize: '0.9rem' }}>
+                  Checking availability...
+                </button>
+              ) : olData?.available && _isTitleMatch(book.title, olData.ol_title) ? (
+                <button
+                  id="read-book-btn"
+                  onClick={() => navigate(`/read/${id}`, {
+                    state: {
+                      title: olData.ol_title || book.title,
+                      authors: book.authors,
+                      readUrl: olData.read_url,
+                      ebookAccess: olData.ebook_access,
+                    }
+                  })}
+                  style={{
+                    padding: '0.65rem 1.25rem', borderRadius: 'var(--radius-md)',
+                    border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+                    fontWeight: 600, transition: 'all 0.2s ease',
+                    background: 'linear-gradient(135deg, #00d4aa 0%, #00b894 100%)',
+                    color: '#0f0f1a', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 212, 170, 0.4)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                  title={olData.ol_title !== book.title ? `Opens: ${olData.ol_title}` : ''}
+                >
+                  📖 Read Book
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {/* Read Book for non-logged-in users */}
+          {!user && olData?.available && _isTitleMatch(book.title, olData.ol_title) && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <button
+                onClick={() => navigate(`/read/${id}`, {
+                  state: {
+                    title: olData.ol_title || book.title,
+                    authors: book.authors,
+                    readUrl: olData.read_url,
+                    ebookAccess: olData.ebook_access,
+                  }
+                })}
+                style={{
+                  padding: '0.65rem 1.25rem', borderRadius: 'var(--radius-md)',
+                  border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+                  fontWeight: 600, transition: 'all 0.2s ease',
+                  background: 'linear-gradient(135deg, #00d4aa 0%, #00b894 100%)',
+                  color: '#0f0f1a', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 212, 170, 0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                title={olData.ol_title !== book.title ? `Opens: ${olData.ol_title}` : ''}
+              >
+                📖 Read Book
+              </button>
             </div>
           )}
 
