@@ -12,8 +12,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/shelf/').catch(() => ({ data: [] })),
-      api.get('/discover/').catch(() => ({ data: { recommendations: [] } }))
+      api.get('shelf/').catch(() => ({ data: [] })),
+      api.get('discover/').catch(() => ({ data: { recommendations: [] } }))
     ])
       .then(([shelfRes, discoverRes]) => {
         setBooks(shelfRes.data || []);

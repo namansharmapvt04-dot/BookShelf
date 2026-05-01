@@ -24,8 +24,8 @@ export default function SearchPage() {
     setSearched(true);
     try {
       const endpoint = source === 'openlibrary'
-        ? `/books/open-library/search/?q=${encodeURIComponent(query)}`
-        : `/books/search/?q=${encodeURIComponent(query)}`;
+        ? `books/open-library/search/?q=${encodeURIComponent(query)}`
+        : `books/search/?q=${encodeURIComponent(query)}`;
       const res = await api.get(endpoint);
       setResults(res.data.results || []);
     } catch {
@@ -38,7 +38,7 @@ export default function SearchPage() {
   const handleAddToShelf = async (book) => {
     setAdding(book.google_book_id);
     try {
-      await api.post('/shelf/', {
+      await api.post('shelf/', {
         google_book_id: book.google_book_id,
         title: book.title,
         authors: book.authors,

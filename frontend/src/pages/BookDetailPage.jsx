@@ -35,7 +35,7 @@ export default function BookDetailPage() {
 
   useEffect(() => {
     // Fetch reviews
-    api.get(`/reviews/?book=${id}`)
+    api.get(`reviews/?book=${id}`)
       .then(res => {
         setReviews(res.data.reviews || []);
         setAvgRating(res.data.average_rating || 0);
@@ -44,12 +44,12 @@ export default function BookDetailPage() {
 
     // Fetch shelf entry for this book
     if (user) {
-      api.get('/shelf/')
+      api.get('shelf/')
         .then(res => {
           const entry = res.data.find(b => b.google_book_id === id);
           setShelfEntry(entry || null);
           if (entry) {
-            api.get(`/tracker/?book=${entry.id}`)
+            api.get(`tracker/?book=${entry.id}`)
               .then(r => setSessions(r.data))
               .catch(console.error);
           }
@@ -64,7 +64,7 @@ export default function BookDetailPage() {
     setOlLoading(true);
     const params = new URLSearchParams({ title: book.title });
     if (book.authors) params.append('author', book.authors);
-    api.get(`/books/open-library/?${params.toString()}`)
+    api.get(`books/open-library/?${params.toString()}`)
       .then(res => setOlData(res.data))
       .catch(() => setOlData(null))
       .finally(() => setOlLoading(false));
@@ -72,7 +72,7 @@ export default function BookDetailPage() {
 
   const handleAddToShelf = async () => {
     try {
-      const res = await api.post('/shelf/', {
+      const res = await api.post('shelf/', {
         google_book_id: book.google_book_id || id,
         title: book.title,
         authors: book.authors,
@@ -89,7 +89,7 @@ export default function BookDetailPage() {
   };
 
   const handleStatusChange = async (newStatus) => {
-    await api.patch(`/shelf/${shelfEntry.id}/`, { status: newStatus });
+    await api.patch(`shelf/${shelfEntry.id}/`, { status: newStatus });
     setShelfEntry(prev => ({ ...prev, status: newStatus }));
     setToast({ message: 'Status updated!', type: 'success' });
   };
@@ -97,7 +97,7 @@ export default function BookDetailPage() {
   const handleLogSession = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/tracker/', {
+      const res = await api.post('tracker/', {
         user_book: shelfEntry.id,
         pages_read: parseInt(sessionForm.pages_read),
         date: sessionForm.date,
@@ -120,7 +120,7 @@ export default function BookDetailPage() {
     e.preventDefault();
     if (!reviewForm.rating) return setToast({ message: 'Please select a rating', type: 'error' });
     try {
-      const res = await api.post('/reviews/', {
+      const res = await api.post('reviews/', {
         google_book_id: id,
         book_title: book?.title || '',
         rating: reviewForm.rating,

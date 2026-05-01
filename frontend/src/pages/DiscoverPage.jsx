@@ -10,7 +10,7 @@ export default function DiscoverPage() {
   const [adding, setAdding] = useState(null);
 
   useEffect(() => {
-    api.get('/discover/')
+    api.get('discover/')
       .then(res => setData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -19,7 +19,7 @@ export default function DiscoverPage() {
   const handleAddToShelf = async (book) => {
     setAdding(book.google_book_id);
     try {
-      await api.post('/shelf/', {
+      await api.post('shelf/', {
         google_book_id: book.google_book_id,
         title: book.title,
         authors: book.authors,

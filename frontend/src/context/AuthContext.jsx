@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
-      api.get('/profile/')
+      api.get('profile/')
         .then(res => setUser(res.data))
         .catch(() => {
           localStorage.removeItem('access_token');
@@ -23,16 +23,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (username, password) => {
-    const res = await api.post('/auth/login/', { username, password });
+    const res = await api.post('auth/login/', { username, password });
     localStorage.setItem('access_token', res.data.access);
     localStorage.setItem('refresh_token', res.data.refresh);
-    const profile = await api.get('/profile/');
+    const profile = await api.get('profile/');
     setUser(profile.data);
     return profile.data;
   };
 
   const register = async (data) => {
-    await api.post('/auth/register/', data);
+    await api.post('auth/register/', data);
     return login(data.username, data.password);
   };
 
@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
   };
 
   const deleteAccount = async (password) => {
-    await api.delete('/auth/delete-account/', { data: { password } });
+    await api.delete('auth/delete-account/', { data: { password } });
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setUser(null);

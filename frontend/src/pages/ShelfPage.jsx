@@ -19,7 +19,7 @@ export default function ShelfPage() {
   const fetchShelf = async (statusFilter = filter) => {
     setLoading(true);
     try {
-      const url = statusFilter ? `/shelf/?status=${statusFilter}` : '/shelf/';
+      const url = statusFilter ? `shelf/?status=${statusFilter}` : 'shelf/';
       const res = await api.get(url);
       setBooks(res.data);
     } catch {
@@ -33,7 +33,7 @@ export default function ShelfPage() {
 
   const handleStatusChange = async (bookId, newStatus) => {
     try {
-      await api.patch(`/shelf/${bookId}/`, { status: newStatus });
+      await api.patch(`shelf/${bookId}/`, { status: newStatus });
       setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: newStatus } : b));
       setToast({ message: 'Status updated!', type: 'success' });
     } catch {

@@ -30,7 +30,7 @@ export default function ReaderPage() {
     const params = new URLSearchParams({ title: bookTitle });
     if (bookAuthor) params.append('author', bookAuthor);
 
-    api.get(`/books/open-library/?${params.toString()}`)
+    api.get(`books/open-library/?${params.toString()}`)
       .then(res => {
         if (res.data.available) {
           setReaderData(res.data);
