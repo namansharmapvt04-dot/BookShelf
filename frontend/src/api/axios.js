@@ -24,7 +24,8 @@ if (!isDev && !ENV_URL) {
 }
 
 // Local dev falls back to the Vite proxy path; prod always uses the full URL
-const BASE_URL = ENV_URL || '/api';
+const BASE_URL = ENV_URL ? `${ENV_URL}/api` : '/api';
+console.log("ENV_URL:", ENV_URL);
 
 console.log(`[api] mode=${isDev ? 'dev' : 'prod'} | BASE_URL=${BASE_URL}`);
 
