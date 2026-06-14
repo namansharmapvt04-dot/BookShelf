@@ -4,12 +4,14 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import BookCard, { BookCardSkeleton } from '../components/BookCard';
 import CurrentlyReading from '../components/CurrentlyReading';
+import GoalRing from '../components/GoalRing';
 import Toast from '../components/Toast';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
   const [discoverData, setDiscoverData] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -21,12 +23,14 @@ export default function DashboardPage() {
   useEffect(() => {
     Promise.all([
       api.get('shelf/').catch(() => ({ data: [] })),
-      api.get('discover/').catch(() => ({ data: { recommendations: [] } }))
+      api.get('discover/').catch(() => ({ data: { recommendations: [] } })),
+      api.get('dashboard/').catch(() => ({ data: null }))
     ])
-      .then(([shelfRes, discoverRes]) => {
+      .then(([shelfRes, discoverRes, dashboardRes]) => {
         setBooks(shelfRes.data || []);
         // Safely extract recommendations specifically for the Dashboard
         setDiscoverData(discoverRes.data?.recommendations || []);
+        setStats(dashboardRes.data || null);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -87,6 +91,14 @@ export default function DashboardPage() {
           Ready to dive back in?
         </p>
       </div>
+
+      {stats && stats.reading_goal > 0 && (
+        <GoalRing
+          completed={stats.completed}
+          goal={stats.reading_goal}
+          percent={stats.goal_progress_percent}
+        />
+      )}
 
       <CurrentlyReading
         books={currentlyReading}
