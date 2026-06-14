@@ -34,6 +34,14 @@
     /* Shadows */
     --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+    /* Aliases — kept so older components referencing these names render correctly */
+    --bg-primary: var(--bg-base);
+    --bg-card: var(--bg-surface);
+    --bg-secondary: var(--bg-surface-hover);
+    --border: var(--border-subtle);
+    --accent-secondary: var(--accent-success);
+    --gradient-primary: linear-gradient(135deg, #5e6ad2 0%, #4a55c0 100%);
   }
 
   body {
@@ -183,6 +191,17 @@
 }
 .input-field:focus { border-color: var(--accent-primary); }
 .input-field::placeholder { color: var(--text-muted); }
+
+/* Dropdowns — force dark background so option text stays readable.
+   Without this, native <option> elements render dark-on-white and disappear. */
+select {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+}
+select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
 
 /* Horizontal Scroll Container (Netflix Style) */
 .horizontal-scroll {
