@@ -3,12 +3,20 @@ import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import BookCard, { BookCardSkeleton } from '../components/BookCard';
+import CurrentlyReading from '../components/CurrentlyReading';
+import Toast from '../components/Toast';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
   const [discoverData, setDiscoverData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+
+  // Merge updated progress fields into a book after logging pages
+  const handleProgressUpdate = (bookId, fields) => {
+    setBooks(prev => prev.map(b => (b.id === bookId ? { ...b, ...fields } : b)));
+  };
 
   useEffect(() => {
     Promise.all([
@@ -80,20 +88,11 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {currentlyReading.length > 0 && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Continue Reading</h2>
-          </div>
-          <div className="horizontal-scroll">
-            {currentlyReading.map(book => (
-              <div key={book.id} style={{ minWidth: '160px', maxWidth: '180px', flexShrink: 0 }}>
-                <BookCard book={book} shelfStatus={book.status} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <CurrentlyReading
+        books={currentlyReading}
+        onUpdate={handleProgressUpdate}
+        onToast={setToast}
+      />
 
       {wantToRead.length > 0 && (
         <section>
@@ -141,6 +140,7 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
