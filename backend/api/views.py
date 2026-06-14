@@ -382,6 +382,70 @@ def dashboard(request):
 OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json'
 OL_HEADERS = {'User-Agent': 'BookShelf/1.0 (bookshelf-app)'}
 
+# Internet Archive identifiers we never want to open in the page reader:
+# metadata-only records (bwb/isbn/lccn) and audiobook recordings (LibriVox etc.)
+_IA_SKIP_PREFIXES = ('bwb_', 'isbn_', 'lccn_')
+_IA_AUDIO_HINTS = ('librivox', 'audio', 'radio', '_lp_', 'cd_')
+
+
+def pick_text_ia_id(ia_list):
+    """Return the first IA identifier that is a readable text scan, skipping
+    metadata-only records and audiobook recordings. None if there isn't one.
+
+    This is a cheap name-based heuristic; use texts_identifiers() when the
+    identifier name alone isn't reliable (e.g. audiobooks named like books)."""
+    for identifier in ia_list or []:
+        low = identifier.lower()
+        if identifier.startswith(_IA_SKIP_PREFIXES):
+            continue
+        if any(hint in low for hint in _IA_AUDIO_HINTS):
+            continue
+        return identifier
+    return None
+
+
+IA_ADVANCEDSEARCH_URL = 'https://archive.org/advancedsearch.php'
+
+
+def texts_identifiers(ia_ids):
+    """Return the subset of IA identifiers whose Archive.org mediatype is 'texts'
+    (readable scans, not audio/video). One batch query, cached per identifier —
+    this is the only reliable way to tell an audiobook from a book scan, since
+    audiobooks are often named exactly like the book."""
+    candidates = [i for i in dict.fromkeys(ia_ids) if not i.startswith(_IA_SKIP_PREFIXES)]
+    result, uncached = set(), []
+    for i in candidates:
+        mt = cache.get(f'ia_mt_{i}')
+        if mt == 'texts':
+            result.add(i)
+        elif mt is None:
+            uncached.append(i)
+
+    if uncached:
+        batch = uncached[:40]  # bound query length
+        q = ' OR '.join(f'identifier:{i}' for i in batch)
+        try:
+            r = requests.get(
+                IA_ADVANCEDSEARCH_URL,
+                params=[('q', q), ('fl[]', 'identifier'), ('fl[]', 'mediatype'),
+                        ('rows', len(batch)), ('output', 'json')],
+                headers=OL_HEADERS, timeout=10,
+            )
+            r.raise_for_status()
+            found = {d['identifier']: d.get('mediatype')
+                     for d in r.json().get('response', {}).get('docs', [])}
+            for i in batch:
+                mt = found.get(i, 'unknown')
+                cache.set(f'ia_mt_{i}', mt, timeout=86400)
+                if mt == 'texts':
+                    result.add(i)
+        except requests.RequestException:
+            # If the check fails, fall back to the name heuristic rather than blocking
+            for i in batch:
+                if not any(h in i.lower() for h in _IA_AUDIO_HINTS):
+                    result.add(i)
+    return result
+
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -413,8 +477,18 @@ def open_library_search(request):
     except requests.RequestException as e:
         return Response({'error': f'Open Library API error: {str(e)}'}, status=502)
 
+    docs = data.get('docs', [])
+
+    # Verify which identifiers are actual text scans (not audiobooks) in one batch.
+    # Only check the public docs, since those are the ones shown in "Read Free".
+    candidate_ids = []
+    for doc in docs:
+        if doc.get('ebook_access') == 'public' and doc.get('has_fulltext'):
+            candidate_ids.extend(doc.get('ia') or [])
+    text_ids = texts_identifiers(candidate_ids)
+
     books = []
-    for doc in data.get('docs', []):
+    for doc in docs:
         cover_id = doc.get('cover_i')
         thumbnail = f'https://covers.openlibrary.org/b/id/{cover_id}-M.jpg' if cover_id else ''
 
@@ -422,17 +496,21 @@ def open_library_search(request):
         ebook_access = doc.get('ebook_access', 'no_ebook')
         readable = has_fulltext and ebook_access in ('public', 'borrowable')
 
-        # Pick best IA identifier for readable books
+        # Pick a readable *text* scan (never an audiobook). If there isn't one,
+        # the book isn't actually readable in our page reader.
         read_url = None
         ia_id = None
-        if readable and doc.get('ia'):
-            for identifier in doc['ia']:
-                if not identifier.startswith(('bwb_', 'isbn_', 'lccn_')):
-                    ia_id = identifier
-                    break
-            if not ia_id:
-                ia_id = doc['ia'][0]
-            read_url = f'https://archive.org/embed/{ia_id}'
+        if readable:
+            if ebook_access == 'public':
+                # Use the mediatype-verified text identifier
+                ia_id = next((i for i in (doc.get('ia') or []) if i in text_ids), None)
+            else:
+                # Borrowable (hidden in Read Free) — cheap name heuristic is fine
+                ia_id = pick_text_ia_id(doc.get('ia'))
+            if ia_id:
+                read_url = f'https://archive.org/embed/{ia_id}'
+            else:
+                readable = False
 
         subjects = doc.get('subject', [])
         categories = ', '.join(subjects[:3]) if subjects else ''
@@ -512,13 +590,6 @@ def open_library_lookup(request):
         'ol_title': None,
     }
 
-    def _pick_ia_id(ia_list):
-        """Pick the best Internet Archive identifier from a list."""
-        for identifier in ia_list:
-            if not identifier.startswith('bwb_') and not identifier.startswith('isbn_') and not identifier.startswith('lccn_'):
-                return identifier
-        return ia_list[0] if ia_list else None
-
     def _title_similarity(doc_title, search_title):
         """Simple title matching score (0-1)."""
         a = doc_title.lower().strip()
@@ -535,14 +606,19 @@ def open_library_lookup(request):
         return len(words_a & words_b) / len(words_b)
 
     
+    # Verify identifiers are real text scans (not audiobooks) in one batch
+    text_ids = texts_identifiers(
+        [i for doc in docs if doc.get('has_fulltext') for i in (doc.get('ia') or [])]
+    )
+
     candidates = []
     for doc in docs:
         if not doc.get('has_fulltext') or not doc.get('ia'):
             continue
 
-        ia_id = _pick_ia_id(doc['ia'])
+        ia_id = next((i for i in doc['ia'] if i in text_ids), None)
         if not ia_id:
-            continue
+            continue  # skip audiobook-only / metadata-only docs
 
         score = 0
         doc_title = doc.get('title', '')
