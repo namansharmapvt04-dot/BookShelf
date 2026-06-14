@@ -5,7 +5,7 @@ import Toast from '../components/Toast';
 
 const SOURCES = [
   { id: 'google', label: 'Google Books' },
-  { id: 'openlibrary', label: 'Open Library' },
+  { id: 'openlibrary', label: '📖 Read Free' },
 ];
 
 export default function SearchPage() {
@@ -15,7 +15,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [toast, setToast] = useState(null);
   const [adding, setAdding] = useState(null);
-  const [source, setSource] = useState('openlibrary');
+  const [source, setSource] = useState('google');
 
   const handleSearch = useCallback(async (e) => {
     e?.preventDefault();
@@ -27,7 +27,13 @@ export default function SearchPage() {
         ? `books/open-library/search/?q=${encodeURIComponent(query)}`
         : `books/search/?q=${encodeURIComponent(query)}`;
       const res = await api.get(endpoint);
-      setResults(res.data.results || []);
+      let items = res.data.results || [];
+      // The "Read Free" tab only makes sense for books you can actually read,
+      // so drop non-readable editions (which are also the coverless duplicates).
+      if (source === 'openlibrary') {
+        items = items.filter(b => b.readable);
+      }
+      setResults(items);
     } catch {
       setToast({ message: 'Search failed. Check your connection.', type: 'error' });
     } finally {
@@ -74,8 +80,8 @@ export default function SearchPage() {
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
           {source === 'openlibrary'
-            ? 'Browse millions of free & borrowable books from Open Library'
-            : 'Discover millions of books via Google Books'}
+            ? 'Books you can read for free right now, via Open Library'
+            : 'Find any book and add it to your library'}
         </p>
       </div>
 

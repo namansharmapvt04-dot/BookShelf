@@ -6,6 +6,18 @@ const STATUS_LABELS = {
   completed: 'Completed',
 };
 
+// Deterministic gradient from a title so coverless books still look like book covers
+const COVER_GRADIENTS = [
+  ['#5e6ad2', '#3b3f8f'], ['#10b981', '#065f46'], ['#f59e0b', '#b45309'],
+  ['#ef4444', '#991b1b'], ['#8b5cf6', '#5b21b6'], ['#06b6d4', '#155e75'],
+  ['#ec4899', '#9d174d'], ['#14b8a6', '#115e59'],
+];
+function gradientFor(title = '') {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
+  return COVER_GRADIENTS[hash % COVER_GRADIENTS.length];
+}
+
 export const BookCardSkeleton = () => (
   <div className="book-card-wrapper">
     <div className="book-thumbnail-container shimmer" />
@@ -71,10 +83,20 @@ export default function BookCard({ book, onAddToShelf, shelfStatus, onStatusChan
           />
         ) : (
           <div style={{
-            width: '100%', height: '100%', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'var(--bg-surface-active)', color: 'var(--text-muted)', fontSize: '24px'
+            width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: '16px', textAlign: 'center',
+            background: `linear-gradient(150deg, ${gradientFor(title)[0]} 0%, ${gradientFor(title)[1]} 100%)`,
           }}>
-            No Cover
+            <span style={{
+              fontSize: '13px', fontWeight: 700, color: '#fff', lineHeight: 1.35,
+              display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+            }}>
+              {title}
+            </span>
+            <span style={{ marginTop: '10px', fontSize: '10px', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+              {authors}
+            </span>
           </div>
         )}
 
